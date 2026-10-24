@@ -1,0 +1,5 @@
+#pragma once
+
+#define TEMPL_VERSION_MAJOR 0
+#define TEMPL_VERSION_MINOR 0
+#define TEMPL_VERSION_PATCH 1

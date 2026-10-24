@@ -1,0 +1,5 @@
+{
+  "site": { "title": "My Site", "base_url": "" },
+  "paths": { "content": "content", "templates": "templates", "assets": "assets", "output": "dist" },
+  "defaults": { "layout": "base" }
+}

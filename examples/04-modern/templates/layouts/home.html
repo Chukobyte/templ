@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{site.title}}</title>
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+  {{> nav}}
+
+  <section class="hero">
+    <div class="container">
+      <span class="hero__label">Static Site Generator</span>
+      <h1 class="hero__title">{{site.title}}</h1>
+      <p class="hero__subtitle">{{description}}</p>
+      <div class="hero__actions">
+        <a href="/blog/" class="btn btn--primary">Read the blog &rarr;</a>
+        <a href="/about/" class="btn btn--ghost">Learn more</a>
+      </div>
+    </div>
+  </section>
+
+  <main class="page-body">
+    <div class="container">
+      <div class="prose">
+        {{{body}}}
+      </div>
+    </div>
+  </main>
+
+  {{> footer}}
+</body>
+</html>

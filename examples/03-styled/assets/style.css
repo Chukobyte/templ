@@ -1,0 +1,123 @@
+/* --- Reset ------------------------------------------------ */
+*, *::before, *::after { box-sizing: border-box; }
+body, h1, h2, h3, p, ul, ol, li { margin: 0; padding: 0; }
+
+/* --- Variables -------------------------------------------- */
+:root {
+  --font:      system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --mono:      'Cascadia Code', 'Fira Code', 'Courier New', monospace;
+  --text:      #1a1a2e;
+  --text-2:    #555;
+  --bg:        #fff;
+  --bg-code:   #f4f4f8;
+  --border:    #ddd;
+  --accent:    #4a6fa5;
+  --max-w:     720px;
+}
+
+/* --- Base ------------------------------------------------- */
+html { font-size: 16px; }
+body {
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.75;
+}
+a { color: var(--accent); }
+img { max-width: 100%; display: block; }
+
+/* --- Nav -------------------------------------------------- */
+.site-nav {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--accent);
+  flex-wrap: wrap;
+}
+.site-nav a { color: #fff; text-decoration: none; font-weight: 500; }
+.site-nav a:hover { text-decoration: underline; }
+.site-nav .brand {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-right: auto;
+}
+.nav-links { display: flex; gap: 1.25rem; }
+
+/* --- Main content ----------------------------------------- */
+.content {
+  max-width: var(--max-w);
+  margin: 2.5rem auto;
+  padding: 0 1.25rem;
+}
+
+/* --- Typography ------------------------------------------- */
+h1 {
+  font-size: clamp(1.75rem, 4vw, 2.25rem);
+  line-height: 1.2;
+  margin-bottom: 1rem;
+}
+h2 {
+  font-size: clamp(1.25rem, 3vw, 1.5rem);
+  margin: 2rem 0 0.75rem;
+}
+h3 { font-size: 1.125rem; margin: 1.5rem 0 0.5rem; }
+p { margin-bottom: 1rem; }
+ul, ol { padding-left: 1.5rem; margin-bottom: 1rem; }
+li { margin-bottom: 0.25rem; }
+
+/* --- Code ------------------------------------------------- */
+code {
+  font-family: var(--mono);
+  font-size: 0.875em;
+  background: var(--bg-code);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+pre {
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  margin-bottom: 1.25rem;
+  line-height: 1.6;
+}
+pre code { background: none; padding: 0; }
+
+/* --- Blockquote ------------------------------------------- */
+blockquote {
+  border-left: 3px solid var(--accent);
+  margin: 1.25rem 0;
+  padding: 0.5rem 1.25rem;
+  color: var(--text-2);
+  font-style: italic;
+}
+
+/* --- HR --------------------------------------------------- */
+hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+
+/* --- Post meta -------------------------------------------- */
+.post-date {
+  color: var(--text-2);
+  font-size: 0.875rem;
+  margin-bottom: 1.5rem;
+}
+.back-link { margin-top: 2.5rem; }
+
+/* --- Footer ----------------------------------------------- */
+.site-footer {
+  text-align: center;
+  padding: 2rem 1.25rem;
+  color: var(--text-2);
+  font-size: 0.875rem;
+  border-top: 1px solid var(--border);
+  margin-top: 4rem;
+}
+
+/* --- Responsive ------------------------------------------- */
+@media (max-width: 480px) {
+  .content { margin-top: 1.5rem; }
+  .site-nav { gap: 1rem; padding: 0.6rem 1rem; }
+  .nav-links { gap: 1rem; }
+}

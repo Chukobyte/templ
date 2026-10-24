@@ -1,0 +1,13 @@
+.{
+    .name = .templ,
+    .fingerprint = 0xedbcbad5cb03164f,
+    .version = "0.0.1",
+    .paths = .{"."},
+    .dependencies = .{
+        // Build against a local seika checkout instead: zig build --fork=<path-to-seika>
+        .seika = .{
+            .url = "https://github.com/Chukobyte/seika/archive/refs/tags/v0.3.0.tar.gz",
+            .hash = "seika-0.3.0-m_oae1xNZQGbVj8J35d49pG6dAZoF9G1H-vTZGG0Jodb",
+        },
+    },
+}

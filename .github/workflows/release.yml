@@ -1,0 +1,239 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  # templ's macOS build links real Apple frameworks (Cocoa, OpenGL -- see seika's CMakeLists.txt
+  # APPLE branch and window_cocoa.m/input_cocoa.m, which like window_x11.c on Linux are compiled
+  # unconditionally on their platform, not gated behind -DSEIKA_RENDERING/-DSEIKA_INPUT), which
+  # cross-compiling from ubuntu-latest can't resolve -- there is no legally redistributable
+  # musl/apt-style package for Apple's SDK headers the way libx11-dev covers Linux. This job runs
+  # on a real macOS runner instead, where zig's own toolchain can find the real SDK/frameworks for
+  # both mac architectures. Runs standalone (no `needs`) so it starts immediately; the `release`
+  # job below waits on it before archiving.
+  build-macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Zig 0.16.0 via zvm
+        run: |
+          curl -LSs https://raw.githubusercontent.com/tristanisham/zvm/master/install.sh | bash
+          chmod +x "$HOME/.zvm/self/zvm"
+          export PATH="$HOME/.zvm/self:$HOME/.zvm/bin:$PATH"
+          echo "$HOME/.zvm/self" >> $GITHUB_PATH
+          echo "$HOME/.zvm/bin" >> $GITHUB_PATH
+          zvm i 0.16.0
+          zvm use 0.16.0
+
+      # -isysroot is required even for the arm64 build below, though it's native-arch on this
+      # runner: any explicit -target (even one matching the host exactly) switches zig cc into
+      # cross-compilation-style resolution, which does not auto-search the host's SDK/framework
+      # paths. x86_64-macos genuinely needs -target (true cross-arch from this arm64 runner), so
+      # -isysroot handles both cases.
+      #
+      # -isysroot alone is still not enough for window_cocoa.m/input_cocoa.m, per seika's build.zig
+      # macos branch (mirrored here since this is plain CMake, not build.zig):
+      #  - zig's clang, unlike real Apple clang, does not auto-derive
+      #    <sysroot>/System/Library/Frameworks as a framework search path from -isysroot alone, so
+      #    "Cocoa/Cocoa.h file not found" even with a valid sysroot -- needs an explicit -F.
+      #  - Cocoa.h -> Foundation.h -> Security.h -> oids.h pulls in <libDER/DERItem.h>, which lives
+      #    directly under the SDK's usr/include, not inside any framework's Headers dir, and is
+      #    likewise not auto-searched -- needs an explicit -isystem.
+      - name: Create zig toolchain wrappers
+        run: |
+          # --sysroot (top-level zig cc flag, not routed through -Wl,) is the link-time counterpart
+          # to -isysroot here: Cocoa.tbd/CoreFoundation.tbd declare their dependency on libobjc.A
+          # as the absolute path /usr/lib/libobjc.A.dylib (real machine's dyld-cache path, not
+          # present as a plain file on modern macOS), and zig's own Mach-O linker needs --sysroot
+          # to know to re-root that path under the SDK (<SDKROOT>/usr/lib/libobjc.A.tbd) when
+          # resolving it, or the final link fails with "unable to resolve dependency
+          # ... libobjc.A.dylib". Raw ld64-style `-Wl,-syslibroot,PATH` is rejected by zig cc's arg
+          # parser -- zig implements its own Mach-O linker, so it needs its own --sysroot flag.
+          SDKROOT="$(xcrun --show-sdk-path)"
+          FMT='#!/bin/sh\nexec zig cc -target %s-macos --sysroot "%s" -isysroot "%s" -F"%s/System/Library/Frameworks" -isystem "%s/usr/include" "$@"\n'
+          printf "$FMT" aarch64 "$SDKROOT" "$SDKROOT" "$SDKROOT" "$SDKROOT" > zig-cc-mac-arm64.sh
+          printf "$FMT" x86_64  "$SDKROOT" "$SDKROOT" "$SDKROOT" "$SDKROOT" > zig-cc-mac-x64.sh
+          printf '#!/bin/sh\nexec zig ar  "$@"\n'    > zig-ar.sh
+          printf '#!/bin/sh\nexec zig ranlib "$@"\n' > zig-ranlib.sh
+          chmod +x zig-cc-mac-arm64.sh zig-cc-mac-x64.sh zig-ar.sh zig-ranlib.sh
+
+      # A real install_name_tool already exists on this runner via Xcode command line tools, so
+      # no stub is needed -- CMake auto-detects it.
+      - name: Build macOS arm64
+        run: |
+          cmake -S . -B _build_mac_arm64 \
+            -DCMAKE_C_COMPILER="$(pwd)/zig-cc-mac-arm64.sh" \
+            -DCMAKE_OBJC_COMPILER="$(pwd)/zig-cc-mac-arm64.sh" \
+            -DCMAKE_AR="$(pwd)/zig-ar.sh" \
+            -DCMAKE_RANLIB="$(pwd)/zig-ranlib.sh" \
+            -DCMAKE_SYSTEM_NAME=Darwin \
+            -DCMAKE_C_COMPILER_WORKS=TRUE \
+            -DCMAKE_OBJC_COMPILER_WORKS=TRUE \
+            -DCMAKE_RUNTIME_OUTPUT_DIRECTORY="$(pwd)/_out/mac-arm64" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DTEMPL_UNIT_TESTS=OFF
+          cmake --build _build_mac_arm64 --target templ -j$(sysctl -n hw.ncpu)
+
+      - name: Build macOS x64
+        run: |
+          cmake -S . -B _build_mac_x64 \
+            -DCMAKE_C_COMPILER="$(pwd)/zig-cc-mac-x64.sh" \
+            -DCMAKE_OBJC_COMPILER="$(pwd)/zig-cc-mac-x64.sh" \
+            -DCMAKE_AR="$(pwd)/zig-ar.sh" \
+            -DCMAKE_RANLIB="$(pwd)/zig-ranlib.sh" \
+            -DCMAKE_SYSTEM_NAME=Darwin \
+            -DCMAKE_C_COMPILER_WORKS=TRUE \
+            -DCMAKE_OBJC_COMPILER_WORKS=TRUE \
+            -DCMAKE_RUNTIME_OUTPUT_DIRECTORY="$(pwd)/_out/mac-x64" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DTEMPL_UNIT_TESTS=OFF
+          cmake --build _build_mac_x64 --target templ -j$(sysctl -n hw.ncpu)
+
+      - name: Upload templ macOS binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: templ-macos-binaries
+          path: |
+            _out/mac-arm64/templ
+            _out/mac-x64/templ
+          if-no-files-found: error
+
+  release:
+    needs: build-macos
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from version.h
+        run: |
+          MAJOR=$(grep '#define TEMPL_VERSION_MAJOR' src/version.h | awk '{print $3}')
+          MINOR=$(grep '#define TEMPL_VERSION_MINOR' src/version.h | awk '{print $3}')
+          PATCH=$(grep '#define TEMPL_VERSION_PATCH' src/version.h | awk '{print $3}')
+          echo "VERSION=${MAJOR}.${MINOR}.${PATCH}" >> "$GITHUB_ENV"
+          echo "TAG=v${MAJOR}.${MINOR}.${PATCH}" >> "$GITHUB_ENV"
+
+      - name: Update version in build.zig.zon
+        run: sed -i 's/\.version = "[^"]*"/.version = "'"${VERSION}"'"/' build.zig.zon
+
+      - name: Check tag does not already exist
+        run: |
+          if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q "${TAG}"; then
+            echo "Error: tag ${TAG} already exists. Bump the version in src/version.h first."
+            exit 1
+          fi
+
+      - name: Install Zig 0.16.0 via zvm
+        run: |
+          curl -LSs https://raw.githubusercontent.com/tristanisham/zvm/master/install.sh | bash
+          # The installer doesn't reliably leave the exec bit set on the downloaded binary,
+          # which fails "zvm i" below with "Permission denied" if it's missing.
+          chmod +x "$HOME/.zvm/self/zvm"
+          export PATH="$HOME/.zvm/self:$HOME/.zvm/bin:$PATH"
+          echo "$HOME/.zvm/self" >> $GITHUB_PATH
+          echo "$HOME/.zvm/bin" >> $GITHUB_PATH
+          zvm i 0.16.0
+          zvm use 0.16.0
+
+      # seika unconditionally compiles window_x11.c/input_x11.c on any Linux build (whole-file
+      # platform gate, not tied to -DSEIKA_RENDERING/-DSEIKA_INPUT).
+      - name: Install X11/GL dev packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libgl1-mesa-dev libglx-dev
+
+      - name: Run templ unit tests
+        timeout-minutes: 10
+        run: |
+          cmake -S . -B _build_test -DTEMPL_UNIT_TESTS=ON
+          cmake --build _build_test -j$(nproc)
+          ctest --test-dir _build_test --output-on-failure
+
+      # -------------------------------------------------------------------
+      # Create zig cc / ar / ranlib wrapper scripts for cross-compilation
+      # -------------------------------------------------------------------
+      - name: Create zig toolchain wrappers
+        run: |
+          # No -target for Linux: ANY explicit -target -- even x86_64-linux-gnu, matching the
+          # ubuntu-latest host exactly -- switches zig cc into cross-compilation-style linking,
+          # which does not search the host's standard system library paths and fails to find
+          # libX11/libGL. ubuntu-latest is already glibc x86_64, so omitting -target makes this a
+          # true native build.
+          printf '#!/bin/sh\nexec zig cc  "$@"\n'                            > zig-cc-linux.sh
+          printf '#!/bin/sh\nexec zig cc  -target x86_64-windows-gnu "$@"\n' > zig-cc-win.sh
+          printf '#!/bin/sh\nexec zig ar  "$@"\n'                             > zig-ar.sh
+          printf '#!/bin/sh\nexec zig ranlib "$@"\n'                          > zig-ranlib.sh
+          chmod +x zig-cc-linux.sh zig-cc-win.sh zig-ar.sh zig-ranlib.sh
+
+      - name: Build Linux x64
+        run: |
+          cmake -S . -B _build_linux \
+            -DCMAKE_C_COMPILER="$(pwd)/zig-cc-linux.sh" \
+            -DCMAKE_AR="$(pwd)/zig-ar.sh" \
+            -DCMAKE_RANLIB="$(pwd)/zig-ranlib.sh" \
+            -DCMAKE_C_COMPILER_WORKS=TRUE \
+            -DCMAKE_RUNTIME_OUTPUT_DIRECTORY="$(pwd)/_out/linux" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DTEMPL_UNIT_TESTS=OFF
+          cmake --build _build_linux --target templ -j$(nproc)
+
+      - name: Build Windows x64
+        run: |
+          cmake -S . -B _build_win \
+            -DCMAKE_C_COMPILER="$(pwd)/zig-cc-win.sh" \
+            -DCMAKE_AR="$(pwd)/zig-ar.sh" \
+            -DCMAKE_RANLIB="$(pwd)/zig-ranlib.sh" \
+            -DCMAKE_SYSTEM_NAME=Windows \
+            -DCMAKE_C_COMPILER_WORKS=TRUE \
+            -DCMAKE_RUNTIME_OUTPUT_DIRECTORY="$(pwd)/_out/win" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DTEMPL_UNIT_TESTS=OFF
+          cmake --build _build_win --target templ -j$(nproc)
+
+      # Built on a real macOS runner in the build-macos job (see its comment).
+      - name: Download templ macOS binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: templ-macos-binaries
+          path: _out/
+
+      - name: Make downloaded templ macOS binaries executable
+        run: chmod +x _out/mac-arm64/templ _out/mac-x64/templ
+
+      - name: Archive binaries
+        run: |
+          (cd _out/linux    && zip "../../templ-${VERSION}-linux-x64.zip"    templ)
+          (cd _out/win      && zip "../../templ-${VERSION}-windows-x64.zip"  templ.exe)
+          (cd _out/mac-arm64 && zip "../../templ-${VERSION}-macos-arm64.zip" templ)
+          (cd _out/mac-x64   && zip "../../templ-${VERSION}-macos-x64.zip"   templ)
+
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${TAG}"
+          git push origin "${TAG}"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${TAG}" \
+            "templ-${VERSION}-linux-x64.zip" \
+            "templ-${VERSION}-windows-x64.zip" \
+            "templ-${VERSION}-macos-arm64.zip" \
+            "templ-${VERSION}-macos-x64.zip" \
+            --title "templ v${VERSION}" \
+            --generate-notes
+
+      - name: Commit build.zig.zon to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add build.zig.zon
+          git commit -m "chore: update templ build.zig.zon to ${VERSION}"
+          git push origin HEAD:main

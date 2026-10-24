@@ -1,0 +1,22 @@
+# IDE
+.idea
+.vscode
+
+# Zig
+.zig-cache
+zig-cache
+zig-out
+zig-pkg
+
+# CMake
+cmake-build-*
+/build*/
+/_build*/
+/_out/
+Testing
+
+# Generated example sites
+dist
+
+temp
+*.tmp
