@@ -314,6 +314,10 @@ cd examples/04-modern
 
 | Library | Purpose |
 |---|---|
-| [seika](../seika/) | Memory, strings, file I/O, HTTP server |
-| [cJSON](../thirdparty/cjson/) | Config JSON parsing |
+| [seika](https://github.com/Chukobyte/seika) | Memory, strings, file I/O, HTTP server |
+| [cJSON](https://github.com/DaveGamble/cJSON) | Config JSON parsing (bundled with seika) |
 | [Unity](https://github.com/ThrowTheSwitch/Unity) | Unit testing (fetched by CMake) |
+
+## License
+
+MIT — see [LICENSE](LICENSE).

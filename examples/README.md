@@ -15,8 +15,9 @@ Run from the example directory (where `tconf.json` lives):
 
 ```sh
 cd examples/01-bare
-../../../build/Debug/templ.exe build   # Windows (Debug build)
-../../../build/templ build             # Linux/macOS
+../../build/templ build                # CMake, single-config generator (Ninja/Make)
+../../build/Debug/templ.exe build      # CMake, Visual Studio generator (Debug)
+../../zig-out/bin/templ build          # zig build
 ```
 
 Output lands in the example's `dist/` directory.
