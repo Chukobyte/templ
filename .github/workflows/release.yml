@@ -211,14 +211,23 @@ jobs:
           (cd _out/mac-arm64 && zip "../../templ-${VERSION}-macos-arm64.zip" templ)
           (cd _out/mac-x64   && zip "../../templ-${VERSION}-macos-x64.zip"   templ)
 
-      - name: Create and push tag
+      # Before the release so the tag lands on the commit that carries the version bump.
+      - name: Commit build.zig.zon to main
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "${TAG}"
-          git push origin "${TAG}"
+          git add build.zig.zon
+          # Already up to date when the version was bumped in build.zig.zon by hand (or on a re-run).
+          if git diff --cached --quiet; then
+            echo "build.zig.zon already at ${VERSION}"
+          else
+            git commit -m "chore: update templ build.zig.zon to ${VERSION}"
+            git push origin HEAD:main
+          fi
 
-      - name: Create GitHub Release
+      # Last step: gh creates the tag together with the release, so a failure anywhere above
+      # leaves no tag behind and the workflow can simply be re-run.
+      - name: Create GitHub Release (and tag)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -227,18 +236,6 @@ jobs:
             "templ-${VERSION}-windows-x64.zip" \
             "templ-${VERSION}-macos-arm64.zip" \
             "templ-${VERSION}-macos-x64.zip" \
+            --target "$(git rev-parse HEAD)" \
             --title "templ v${VERSION}" \
             --generate-notes
-
-      - name: Commit build.zig.zon to main
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add build.zig.zon
-          # Already up to date when the version was bumped in build.zig.zon by hand.
-          if git diff --cached --quiet; then
-            echo "build.zig.zon already at ${VERSION}"
-          else
-            git commit -m "chore: update templ build.zig.zon to ${VERSION}"
-            git push origin HEAD:main
-          fi
