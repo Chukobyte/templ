@@ -1,7 +1,7 @@
 .{
     .name = .templ,
     .fingerprint = 0xedbcbad5cb03164f,
-    .version = "0.0.1",
+    .version = "0.1.0",
     .paths = .{"."},
     .dependencies = .{
         // Build against a local seika checkout instead: zig build --fork=<path-to-seika>
